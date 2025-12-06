@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emoji Memory Game - Final</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f8ff;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- Start Screen Styles --- */
+        .start-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #74b9ff, #a29bfe);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            color: white;
+            text-align: center;
+        }
+
+        .start-screen h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .start-screen p {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+        }
+
+        .btn-play {
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            background-color: #ff9f43;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: transform 0.3s, background 0.3s;
+            font-weight: bold;
+        }
+
+        .btn-play:hover {
+            transform: scale(1.1);
+            background-color: #f39c12;
+        }
+
+        /* --- Game UI --- */
+        .game-ui {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        h1.game-title { margin-bottom: 10px; color: #333; }
+
+        .level-buttons { margin-bottom: 15px; }
+
+        .btn-level {
+            padding: 8px 15px;
+            margin: 0 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            background-color: #ddd;
+            transition: 0.3s;
+        }
+
+        .btn-level:hover, .btn-level.active {
+            background-color: #2e86de;
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .score-board {
+            display: flex;
+            justify-content: space-between;
+            width: 90%;
+            max-width: 500px;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #555;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .best-score-box { color: #27ae60; }
+
+        .memory-game {
+            width: 90%;
+            max-width: 500px;
+            height: 400px;
+            display: flex;
+            flex-wrap: wrap;
+            perspective: 1000px;
+        }
+
+        .memory-card {
+            margin: 5px;
+            position: relative;
+            transform: scale(1);
+            transform-style: preserve-3d;
+            transition: transform .5s;
+            cursor: pointer;
+        }
+        
+        .memory-game.grid-4 .memory-card { width: calc(25% - 10px); height: calc(25% - 10px); }
+        .memory-game.grid-4.easy .memory-card { height: calc(33.33% - 10px); }
+        .memory-game.grid-5 .memory-card { width: calc(20% - 10px); height: calc(25% - 10px); }
+
+        .memory-card:active { transform: scale(0.97); transition: transform .2s; }
+        .memory-card.flip { transform: rotateY(180deg); }
+
+        .front-face, .back-face {
+            width: 100%;
+            height: 100%;
+            padding: 5px;
+            position: absolute;
+            border-radius: 8px;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            backface-visibility: hidden;
+            box-shadow: 1px 1px 5px rgba(0,0,0,0.3);
+        }
+
+        .back-face { background: #2e86de; color: white; transform: rotateY(0deg); font-size: 1.5rem; }
+        .front-face { transform: rotateY(180deg); background-color: #fff; }
+        
+        .restart-btn {
+            padding: 10px 25px;
+            font-size: 1rem;
+            background-color: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        .restart-btn:hover { background-color: #ee5253; }
+        .danger { color: red; }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen" class="start-screen">
+        <h1>🧠 Memory Game</h1>
+        <p>સરખા ઈમોજી શોધો અને રેકોર્ડ બનાવો!</p>
+        <button class="btn-play" onclick="startGame()">Play Game 🎮</button>
+    </div>
+
+    <div id="game-ui" class="game-ui">
+        <h1 class="game-title">યાદશક્તિની રમત</h1>
+        
+        <div class="level-buttons">
+            <button class="btn-level" onclick="setDifficulty('easy')">Easy</button>
+            <button class="btn-level active" onclick="setDifficulty('medium')">Medium</button>
+            <button class="btn-level" onclick="setDifficulty('hard')">Hard</button>
+        </div>
+
+        <div class="score-board">
+            <span>ચાલ: <span id="moves">0</span></span>
+            <span>સમય: <span id="time-left">60</span>s</span>
+            <span class="best-score-box">રેકોર્ડ: <span id="best-score">-</span></span>
+        </div>
+
+        <div class="memory-game grid-4"></div>
+        
+        <button class="restart-btn" onclick="resetGame()">ફરીથી રમો (Restart)</button>
+    </div>
+
+    <audio id="sound-flip" src="https://assets.mixkit.co/active_storage/sfx/2073/2073-preview.mp3"></audio>
+    <audio id="sound-match" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
+    <audio id="sound-win" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3"></audio>
+    <audio id="sound-lose" src="https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3"></audio>
+
+    <script>
+        const startScreen = document.getElementById('start-screen');
+        const gameUI = document.getElementById('game-ui');
+        const gameContainer = document.querySelector('.memory-game');
+        const movesElement = document.getElementById('moves');
+        const timeLeftElement = document.getElementById('time-left');
+        const bestScoreElement = document.getElementById('best-score');
+        const levelButtons = document.querySelectorAll('.btn-level');
+        
+        const sounds = {
+            flip: document.getElementById('sound-flip'),
+            match: document.getElementById('sound-match'),
+            win: document.getElementById('sound-win'),
+            lose: document.getElementById('sound-lose')
+        };
+
+        const allEmojis = ['🦁', '🚀', '🍕', '⚽', '🎸', '💎', '🌵', '🎈', '🍦', '🚲'];
+
+        const levels = {
+            easy: { pairs: 6, time: 45, gridClass: 'grid-4', extraClass: 'easy' },
+            medium: { pairs: 8, time: 60, gridClass: 'grid-4', extraClass: '' },
+            hard: { pairs: 10, time: 75, gridClass: 'grid-5', extraClass: '' }
+        };
+
+        let currentLevel = 'medium';
+        let gameActive = false;
+        let hasFlippedCard = false;
+        let lockBoard = false;
+        let firstCard, secondCard;
+        let matchCount = 0;
+        let moves = 0;
+        let timeLeft;
+        let timerInterval;
+
+        function startGame() {
+            startScreen.style.display = 'none';
+            gameUI.style.display = 'flex';
+            initGame();
+        }
+
+        function playSound(type) {
+            sounds[type].currentTime = 0;
+            sounds[type].play();
+        }
+
+        function setDifficulty(level) {
+            currentLevel = level;
+            levelButtons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            resetGame();
+        }
+
+        function updateBestScoreDisplay() {
+            const bestMoves = localStorage.getItem(`highscore_${currentLevel}`);
+            bestScoreElement.innerText = bestMoves ? bestMoves : '-';
+        }
+
+        function initGame() {
+            gameContainer.innerHTML = '';
+            const config = levels[currentLevel];
+            
+            matchCount = 0;
+            moves = 0;
+            timeLeft = config.time;
+            gameActive = true;
+            
+            movesElement.innerText = moves;
+            timeLeftElement.innerText = timeLeft;
+            timeLeftElement.classList.remove('danger');
+            
+            updateBestScoreDisplay();
+
+            gameContainer.className = `memory-game ${config.gridClass} ${config.extraClass}`;
+
+            clearInterval(timerInterval);
+            startTimer();
+
+            let gameItems = allEmojis.slice(0, config.pairs);
+            gameItems = [...gameItems, ...gameItems];
+            gameItems.sort(() => 0.5 - Math.random());
+
+            gameItems.forEach(item => {
+                const card = document.createElement('div');
+                card.classList.add('memory-card');
+                card.dataset.framework = item;
+                card.innerHTML = `<div class="front-face">${item}</div><div class="back-face">❓</div>`;
+                card.addEventListener('click', flipCard);
+                gameContainer.appendChild(card);
+            });
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                if(!gameActive) return;
+                timeLeft--;
+                timeLeftElement.innerText = timeLeft;
+                if(timeLeft <= 10) timeLeftElement.classList.add('danger');
+                if (timeLeft <= 0) gameOver();
+            }, 1000);
+        }
+
+        function gameOver() {
+            clearInterval(timerInterval);
+            gameActive = false;
+            lockBoard = true;
+            playSound('lose');
+            setTimeout(() => {
+                alert(`સમય સમાપ્ત! 😢`);
+            }, 500);
+        }
+
+        function flipCard() {
+            if (lockBoard || !gameActive || this === firstCard) return;
+            playSound('flip');
+            this.classList.add('flip');
+
+            if (!hasFlippedCard) {
+                hasFlippedCard = true;
+                firstCard = this;
+                return;
+            }
+            secondCard = this;
+            incrementMoves();
+            checkForMatch();
+        }
+
+        function incrementMoves() {
+            moves++;
+            movesElement.innerText = moves;
+        }
+
+        function checkForMatch() {
+            let isMatch = firstCard.dataset.framework === secondCard.dataset.framework;
+            isMatch ? disableCards() : unflipCards();
+        }
+
+        function disableCards() {
+            setTimeout(() => playSound('match'), 200);
+            firstCard.removeEventListener('click', flipCard);
+            secondCard.removeEventListener('click', flipCard);
+            matchCount++;
+            
+            if(matchCount === levels[currentLevel].pairs) {
+                clearInterval(timerInterval);
+                gameActive = false;
+                checkHighScore();
+            }
+            resetBoard();
+        }
+
+        function checkHighScore() {
+            const savedScore = localStorage.getItem(`highscore_${currentLevel}`);
+            let message = `અભિનંદન! તમે જીતી ગયા! 🎉\nચાલ: ${moves} | સમય: ${levels[currentLevel].time - timeLeft}s`;
+
+            // નવો રેકોર્ડ
+            if (!savedScore || moves < parseInt(savedScore)) {
+                localStorage.setItem(`highscore_${currentLevel}`, moves);
+                message += `\n\n🏆 નવો રેકોર્ડ! તમે જૂનો રેકોર્ડ તોડ્યો!`;
+                updateBestScoreDisplay();
+            }
+
+            // --- Confetti Effect કોડ અહીં છે ---
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+            // --------------------------------
+
+            setTimeout(() => {
+                playSound('win');
+                alert(message);
+            }, 500);
+        }
+
+        function unflipCards() {
+            lockBoard = true;
+            setTimeout(() => {
+                firstCard.classList.remove('flip');
+                secondCard.classList.remove('flip');
+                resetBoard();
+            }, 1000);
+        }
+
+        function resetBoard() {
+            [hasFlippedCard, lockBoard] = [false, false];
+            [firstCard, secondCard] = [null, null];
+        }
+
+        function resetGame() {
+            clearInterval(timerInterval);
+            resetBoard();
+            initGame();
+        }
+    </script>
+</body>
+</html>
